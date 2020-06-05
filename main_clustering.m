@@ -7,12 +7,12 @@ n_sim = 10;
 average_clustering = NaN(N+1,1);
 alpha = 0.05;
 nn  = 3:5:N+1;
-nn  = 1000;
+nn  = 500;
 %[expected_clustering_coefficient, cumulative_probability] = compute_expected_clustering_coefficient(N, alpha);
 
 for i=1:size(nn,2)
     model.n = nn(i);
-    model.T = 2000;
+    model.T = 1000;
     model.q      = rand(model.n,1);
     model.q      = sort(model.q, 'descend');
 
