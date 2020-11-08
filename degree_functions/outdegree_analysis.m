@@ -37,11 +37,13 @@ function outdegree_analysis(model, outdegree)
     figure();
     errorbar(expected_outdegree, outdegree_std);
     hold on;
+    xlim([1,model.n-1]);
     plot(log(1:model.n+1)/log(2));
     xlabel('n');
     ylabel('Expected Outdegree');
     legend('Outdegree', 'log_2(n)');
     title('Theoretical Expected Outdegree with std');
+    matlab2tikz('figures/expected_outdegree.tikz');
     
     %% Simulation
     n_sim = size(outdegree,2);
@@ -54,13 +56,22 @@ function outdegree_analysis(model, outdegree)
     ratio_std = numerical_outdegree_variance/theoretical_outdegree_variance;
     
     figure();
-    histogram(out_resize, 0.5:model.n-0.5);
+    %histogram(out_resize, 0.5:model.n-0.5);
     hold on;
-    plot(1:model.n, outdegree_prob_dist(model.n, :)*model.n*n_sim, 'linewidth', 3);
+    %plot(1:model.n-1, outdegree_prob_dist(model.n, :)*model.n*n_sim, 'linewidth', 2);
+    N = [10, 50, 100, ...%500, ...
+        model.n];
+    for i=1:size(N,2)
+        plot(1:N(i), outdegree_prob_dist(N(i), 1:N(i)), 'linewidth', 2);
+    end
+    xlim([1,model.n-1]);
     xlabel('Outdegree');
     ylabel('Frequency');
     title('Outdegree distribution');
-    legend('Numerical', 'Theoretical at T=\infty');
+    legend('N=10', 'N=50', 'N=100', 'N=500', 'N=1000');
+    matlab2tikz('figures/outdegree_pdf.tikz');
+    
+    
     
     
 

@@ -1,6 +1,6 @@
 function SF_indegree_analysis(model, final_indegree)
     
-    %% Probability Distribtion Function plot.
+    %% Probability Distribution Function plot.
     n_sim = size(final_indegree,2);
     for d=1:model.n
         numerical_pdf(d) = histcounts(final_indegree(:,:), [d-1 d-1])/(model.n*n_sim);

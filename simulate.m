@@ -22,6 +22,7 @@ function A = simulate(model)
             end
         end
     end
+    %t
     %plot_outdegree(outdegree);
     %plot_indegree(indegree);
     % figure();

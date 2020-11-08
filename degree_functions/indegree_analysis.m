@@ -1,96 +1,182 @@
 function indegree_analysis(model, indegree)
-
-    n_sim = size(indegree,2);
-    indegree_prob_table = compute_indegree_prob_table(model);
-    theoretical_indegree_pdf = sum(indegree_prob_table,1)/model.n;
-    theoretical_indegree_cdf = cumsum(theoretical_indegree_pdf);
     
+    %% Plot 1:
+    % fitting the CDF with the method specified in Clauset 2007.
+    indegree_1d_withzero = reshape(indegree, 1, []);
+    indegree_1d = indegree_1d_withzero(indegree_1d_withzero~=0);
+    [alpha, xmin, L] = plfit(indegree_1d)
+    [h, powerlawfit_cdf] = plplot(indegree_1d, xmin, alpha);
+    [alpha_tol, xmin_tol, n_tol] = plvar(indegree_1d, 'silent')
+    [p,gof]=plpva(indegree_1d, xmin, 'silent')
+    power_law_fit_legend = ['power-law fit: alpha=', num2str(alpha),  ', alpha_{tol}=', num2str(alpha_tol), ', xmin=', num2str(xmin) ', xmin_{tol}=', num2str(xmin_tol),  ', p-value=', num2str(p), ', gof=', num2str(gof)];
+    legend('Numerical', power_law_fit_legend);
+    %matlab2tikz('figures/indegree_cdf_new.tikz');
+ 
+    %% Fit the numerical data with lognormal distribution
+    lognormal_parameter_hat = lognfit(indegree_1d);
+    
+    %% Computing numerical pdf and cdf
+    n_sim = size(indegree,2);
     numerical_pdf = zeros(model.n,1);
     for d=1:model.n
         numerical_pdf(d) = histcounts(indegree(:,:), [d-1 d-1])/(model.n*n_sim);
     end
-    numerical_indegree_cdf  = cumsum(numerical_pdf);
-
-    %%
-    % Plot 1: Indegree Probability Distribution Function, Theoretical and
-    % Numerical.
+    numerical_cdf = cumsum(numerical_pdf);
+    
+    %% Computing theoretical pdf and cdf
+    [indegree_prob_table, indegree_prob_table_inf] = compute_indegree_prob_table(model);
+    theoretical_indegree_pdf = sum(indegree_prob_table_inf,1)/model.n;
+    theoretical_indegree_cdf = cumsum(theoretical_indegree_pdf);
+    
+    
+    %% Plot 2:
+    % Numerical pdf and lognormal fit.
     figure();
     hold on;
-    x = 0:1:model.n-1;
+    x = 0:model.n-1;
+    %theoretical
     scatter(x, theoretical_indegree_pdf,'+');
+    %numerical
     scatter(x, numerical_pdf, 'd');
-    power_law_pdf_fit = fit(log(1:(model.n-1)/2+1)', log(theoretical_indegree_pdf(1:(model.n-1)/2+1)'), 'poly1');
-    y=[];
-    for d=2:model.n-1
-        y = [y; repmat([d-1], ceil(1000*theoretical_indegree_pdf(d+1)),1)];
+    %lognormal
+    pd = makedist('Lognormal','mu',lognormal_parameter_hat(1),'sigma',lognormal_parameter_hat(2));
+    y = pdf(pd, x);
+    plot(x,y);
+    %powerlaw fit
+    powerlawfit_pdf = powerlawfit_cdf;
+    for i=1:size(powerlawfit_pdf,1)-1
+        powerlawfit_pdf(i,2) = powerlawfit_cdf(i,2) -  powerlawfit_cdf(i+1,2);
     end
-    lognfit_pdf_fit = fitdist(y+1, 'lognormal'); %TO BE CHECKED
-    xlabel('Indegree');
-    ylabel('pdf');
-    xlim([0,model.n-1]);
-    plot(x, lognpdf(x, lognfit_pdf_fit.mu-1, lognfit_pdf_fit.sigma)); %TO BE CHECKED
-    plot(1:1:model.n-1, exp(power_law_pdf_fit(log(1:1:model.n-1))));
-    log_normal_fit_legend = ['log-normal fit: \mu=', num2str(lognfit_pdf_fit.mu-1), ', \sigma=', num2str(lognfit_pdf_fit.sigma)];
-    power_law_fit_legend = ['power-law fit: p1=', num2str(power_law_pdf_fit.p1), ', p2=', num2str(power_law_pdf_fit.p2)];
-    % p1 should be close to -2, for pure Zipf's law, or for a power law
-    % with coeff. -2.
-    legend('Theoretical at T=\infty', 'Numerical', log_normal_fit_legend, power_law_fit_legend);
-    title('Indegree Pdf');
+    plot(powerlawfit_pdf(:,1), powerlawfit_pdf(:,2));
+    
     set(gca, 'XScale', 'log');
     set(gca, 'YScale', 'log');
-
-    %% 
-    % Plot 2: Indegree Survival Distribution Function, Theoretical and
-    % Numerical.
+    xlim([0,model.n-1]);
+    ylim([10^-6, 1]);
+  
+    log_normal_fit_legend = ['log-normal fit: \mu=', num2str(lognormal_parameter_hat(1)), ', \sigma=', num2str(lognormal_parameter_hat(2))];
+    power_law_fit_legend = ['power-law fit: alpha=', num2str(alpha),  ', alpha_{tol}=', num2str(alpha_tol), ', xmin=', num2str(xmin) ', xmin_{tol}=', num2str(xmin_tol),  ', p-value=', num2str(p), ', gof=', num2str(gof)];
+    legend('Theoretical at T=\infty', 'Numerical distribution', ...
+            log_normal_fit_legend, power_law_fit_legend);
+    matlab2tikz('figures/indegree_pdf.tikz');
     
+    %%
+    % Plot 3: Indegree Complementary Cumulative Distribution Function, 
+    % Theoretical, Numerical, and fits.
     figure();
     hold on;
-    stairs(0:model.n-1, 1-numerical_indegree_cdf, 'LineWidth', 2);
-    stairs(0:model.n-1, 1-theoretical_indegree_cdf, 'LineWidth', 2);
-    set(gca, 'XScale', 'log');
+    x = 1:1:model.n-1;
+    %theoretical
+    scatter(x, 1-theoretical_indegree_cdf(1:end-1),'+');
+    %numerical
+    scatter(x, 1-numerical_cdf(1:end-1), 'd');
+    %lognormal
+    pd = makedist('Lognormal','mu',lognormal_parameter_hat(1),'sigma',lognormal_parameter_hat(2));
+    y = cdf(pd, x);
+    plot(x,1-y);
+    %powerlaw
+    plot(powerlawfit_cdf(:,1), powerlawfit_cdf(:,2));
+    
     xlabel('Indegree');
-    ylabel('Survival Dist. Funct.');
-    legend('Empirical', 'Theoretical at T=\infty');
+    ylabel('cdf');
     xlim([0,model.n-1]);
-    set(gca,'Ylim',[10^-2, 1]);
-    title('Indegree Survival Distribution Function');
+    ylim([10^-3, 1]);
+    log_normal_fit_legend = ['log-normal fit: \mu=', num2str(lognormal_parameter_hat(1)), ', \sigma=', num2str(lognormal_parameter_hat(2))];
+    power_law_fit_legend = ['power-law fit: alpha=', num2str(alpha),  ', alpha_{tol}=', num2str(alpha_tol), ', xmin=', num2str(xmin) ', xmin_{tol}=', num2str(xmin_tol),  ', p-value=', num2str(p), ', gof=', num2str(gof)];
+    legend('Theoretical at T=\infty', 'Numerical distribution', ...
+            log_normal_fit_legend, power_law_fit_legend);
+    title('Indegree CCdf');
+    set(gca, 'XScale', 'log');
     set(gca, 'YScale', 'log');
+    matlab2tikz('figures/indegree_cdf.tikz');
+
 
     %% 
-    % Plot: Indegree Probability Distribution Function vs Rank
-    % According to Zipf's law, expected slope of -1.
+    % Plot 4: Indegree Probability Distribution Function vs Rank, at time t.
     figure();
-    [D,K]=meshgrid(1:1:model.n, 0:1:model.n-1);
-    surf(D,K,indegree_prob_table');
+    [D,K]=meshgrid(1:1:model.n, 1:1:model.n-1);
+    h = surf(D,K,indegree_prob_table(:,2:end)');
+    h.Annotation.LegendInformation.IconDisplayStyle = 'off';
     shading interp;
-    colormap(flipud(hot));
-    hcb=colorbar();
-    hcb.Label.String = 'Probability';
-    hold on;
-    
-    average_indegree = mean(indegree, 2);
-    scatter3(1:model.n, average_indegree, ones(1,model.n), 'b', 'filled');
-
-    for i=1:model.n
-        expected_mean_indegree(i) = exp_mean_indegree(model, i);
-    end
-    plot3(1:model.n, expected_mean_indegree, ones(1,model.n), 'g', 'LineWidth', 2);
-    
-    expected_mean_indegree_inf= (model.n+1)*ones(model.n,1) - [model.n:-1:1]';
-    expected_mean_indegree_inf= model.n./expected_mean_indegree_inf;
-    expected_mean_indegree_inf(1) = model.n;
-    plot3(expected_mean_indegree_inf, 1:model.n, ones(1,model.n), 'm+', 'LineWidth',1);
-    
+    cMap = flipud(gray);
+    dataMax = 1;
+    dataMin = 0;
+    centerPoint = 0;
+    scalingIntensity = 5;
+    x = 1:length(cMap); 
+    x = x - (centerPoint-dataMin)*length(x)/(dataMax-dataMin);
+    x = scalingIntensity * x/max(abs(x));
+    x = sign(x).* exp(abs(x));
+    x = x - min(x); x = x*511/max(x)+1; 
+    newMap = interp1(x, cMap, 1:512);
+    colormap(newMap)
     view(2);
     xlim([1,model.n]);
     ylim([1,model.n-1]);
     set(gca, 'XScale', 'log');
     set(gca, 'YScale', 'log');
-    xlabel('Rank');
-    ylabel('Indegree');
-    legend('Pdf', 'Numerical Mean', 'Expected Mean', 'Expected Mean at T=\infty');
-    title('Zipf`s law'); 
-    hold off;
+    set(gca,'visible','off');
+    box off;
+    H = getframe(gca);
+    imwrite(H.cdata, 'figures/indegree_mesh_T=200.png')
+    
+    figure();
+    expected_mean_indegree = indegree_prob_table*[0:model.n-1]';
+    plot3(1:model.n, expected_mean_indegree,  ones(1,model.n), '+', 'LineWidth', 1);
+    view(2);
+    xlim([1,model.n]);
+    ylim([1,model.n-1]);
+    set(gca, 'XScale', 'log');
+    set(gca, 'YScale', 'log');
+    xlabel('Rank i');
+    ylabel('Indegree d_{in}^i');
+    matlab2tikz('figures/mean_indegree_zipf_T=200.tikz');
+    
+    %% 
+    % Plot 5: Indegree Probability Distribution Function vs Rank
+    % According to Zipf's law, expected slope of -1.
+    figure();
+    [D,K]=meshgrid(1:1:model.n, 1:1:model.n-1);
+    h = surf(D,K,indegree_prob_table_inf(:,2:end)');
+    h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+    shading interp;
+    cMap = flipud(gray);
+    dataMax = 1;
+    dataMin = 0;
+    centerPoint = 0;
+    scalingIntensity = 5;
+    x = 1:length(cMap); 
+    x = x - (centerPoint-dataMin)*length(x)/(dataMax-dataMin);
+    x = scalingIntensity * x/max(abs(x));
+    x = sign(x).* exp(abs(x));
+    x = x - min(x); x = x*511/max(x)+1; 
+    newMap = interp1(x, cMap, 1:512);
+    colormap(newMap);
+    view(2);
+    xlim([1,model.n]);
+    ylim([1,model.n-1]);
+    set(gca, 'XScale', 'log');
+    set(gca, 'YScale', 'log');
+    colorbar
+    caxis([0 1])
+    set(gca,'visible','off');
+    box off;
+    H = getframe(gca);
+    imwrite(H.cdata, 'figures/indegree_mesh_T=inf.png')
+    
+    figure();
+    expected_mean_indegree_inf= (model.n+1)*ones(model.n,1) - [model.n:-1:1]';
+    expected_mean_indegree_inf= model.n./expected_mean_indegree_inf;
+    expected_mean_indegree_inf(1) = model.n-1;
+    plot3(1:model.n, expected_mean_indegree_inf,  ones(1,model.n), '+', 'LineWidth', 1);
+    view(2);
+    xlim([1,model.n]);
+    ylim([1,model.n-1]);
+    set(gca, 'XScale', 'log');
+    set(gca, 'YScale', 'log');
+    xlabel('Rank i');
+    ylabel('Indegree d_{in}^i');
+    matlab2tikz('figures/mean_indegree_zipf_T=inf.tikz');
 
     %% 
     % Plot: Fit of Zipf's law from Numerical Data.
